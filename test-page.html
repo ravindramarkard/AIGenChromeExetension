@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI TestGen - Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background: #f4f4f4;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .button-group {
+            margin: 20px 0;
+        }
+        .card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .nav-menu {
+            background: #333;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .nav-menu a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            margin: 0 5px;
+            border-radius: 4px;
+        }
+        .nav-menu a:hover {
+            background: #555;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="main-title">AI TestGen Extension Test Page</h1>
+    <p>This page contains various elements to test the AI TestGen Chrome extension functionality.</p>
+
+    <!-- Navigation Menu -->
+    <nav class="nav-menu">
+        <a href="#home" id="nav-home">Home</a>
+        <a href="#about" id="nav-about">About</a>
+        <a href="#contact" id="nav-contact">Contact</a>
+        <a href="#services" id="nav-services">Services</a>
+    </nav>
+
+    <!-- Login Form -->
+    <div class="container">
+        <h2>Login Form</h2>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+            <div class="form-group">
+                <label for="remember">
+                    <input type="checkbox" id="remember" name="remember"> Remember me
+                </label>
+            </div>
+            <button type="submit" id="login-btn">Login</button>
+            <button type="button" id="forgot-password">Forgot Password?</button>
+        </form>
+    </div>
+
+    <!-- Contact Form -->
+    <div class="container">
+        <h2>Contact Form</h2>
+        <form id="contact-form">
+            <div class="form-group">
+                <label for="name">Full Name:</label>
+                <input type="text" id="name" name="name" placeholder="Your full name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" placeholder="your.email@example.com" required>
+            </div>
+            <div class="form-group">
+                <label for="subject">Subject:</label>
+                <select id="subject" name="subject" required>
+                    <option value="">Select a subject</option>
+                    <option value="general">General Inquiry</option>
+                    <option value="support">Technical Support</option>
+                    <option value="billing">Billing Question</option>
+                    <option value="feedback">Feedback</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="message">Message:</label>
+                <textarea id="message" name="message" rows="5" placeholder="Your message here..." required></textarea>
+            </div>
+            <button type="submit" id="contact-submit">Send Message</button>
+            <button type="reset" id="contact-reset">Clear Form</button>
+        </form>
+    </div>
+
+    <!-- Interactive Buttons -->
+    <div class="container">
+        <h2>Interactive Elements</h2>
+        <div class="button-group">
+            <button id="alert-btn" onclick="alert('Hello from AI TestGen!')">Show Alert</button>
+            <button id="toggle-btn" onclick="toggleVisibility()">Toggle Content</button>
+            <button id="counter-btn" onclick="incrementCounter()">Click Counter: <span id="counter">0</span></button>
+            <button id="color-btn" onclick="changeColor()">Change Color</button>
+        </div>
+        
+        <div id="toggle-content" class="card">
+            <h3>Toggleable Content</h3>
+            <p>This content can be shown or hidden using the toggle button above.</p>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="container">
+        <h2>Data Table</h2>
+        <table id="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>John Doe</td>
+                    <td>john@example.com</td>
+                    <td>Active</td>
+                    <td>
+                        <button class="edit-btn" data-id="1">Edit</button>
+                        <button class="delete-btn" data-id="1">Delete</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>Jane Smith</td>
+                    <td>jane@example.com</td>
+                    <td>Inactive</td>
+                    <td>
+                        <button class="edit-btn" data-id="2">Edit</button>
+                        <button class="delete-btn" data-id="2">Delete</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>Bob Johnson</td>
+                    <td>bob@example.com</td>
+                    <td>Active</td>
+                    <td>
+                        <button class="edit-btn" data-id="3">Edit</button>
+                        <button class="delete-btn" data-id="3">Delete</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Product Cards -->
+    <div class="container">
+        <h2>Product Showcase</h2>
+        <div class="card" data-product="laptop">
+            <h3>Gaming Laptop</h3>
+            <p>High-performance laptop for gaming and professional work.</p>
+            <p><strong>Price: $1,299</strong></p>
+            <button class="add-to-cart" data-product="laptop">Add to Cart</button>
+            <button class="view-details" data-product="laptop">View Details</button>
+        </div>
+        
+        <div class="card" data-product="phone">
+            <h3>Smartphone</h3>
+            <p>Latest smartphone with advanced camera and long battery life.</p>
+            <p><strong>Price: $699</strong></p>
+            <button class="add-to-cart" data-product="phone">Add to Cart</button>
+            <button class="view-details" data-product="phone">View Details</button>
+        </div>
+    </div>
+
+    <script>
+        let counter = 0;
+        let isVisible = true;
+        let currentColor = 0;
+        const colors = ['#007cba', '#28a745', '#dc3545', '#ffc107', '#6f42c1'];
+
+        function incrementCounter() {
+            counter++;
+            document.getElementById('counter').textContent = counter;
+        }
+
+        function toggleVisibility() {
+            const content = document.getElementById('toggle-content');
+            isVisible = !isVisible;
+            content.style.display = isVisible ? 'block' : 'none';
+            document.getElementById('toggle-btn').textContent = isVisible ? 'Hide Content' : 'Show Content';
+        }
+
+        function changeColor() {
+            currentColor = (currentColor + 1) % colors.length;
+            document.getElementById('color-btn').style.backgroundColor = colors[currentColor];
+        }
+
+        // Add event listeners for table buttons
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                alert('Edit user ID: ' + this.dataset.id);
+            });
+        });
+
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (confirm('Delete user ID: ' + this.dataset.id + '?')) {
+                    this.closest('tr').remove();
+                }
+            });
+        });
+
+        // Add event listeners for product buttons
+        document.querySelectorAll('.add-to-cart').forEach(btn => {
+            btn.addEventListener('click', function() {
+                alert('Added ' + this.dataset.product + ' to cart!');
+            });
+        });
+
+        document.querySelectorAll('.view-details').forEach(btn => {
+            btn.addEventListener('click', function() {
+                alert('Viewing details for ' + this.dataset.product);
+            });
+        });
+
+        // Form submission handlers
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Login form submitted!');
+        });
+
+        document.getElementById('contact-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Contact form submitted!');
+        });
+    </script>
+</body>
+</html>

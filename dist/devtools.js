@@ -1,0 +1,2 @@
+chrome.devtools.panels.create("AI TestGen","icons/icon16.png","panel.html",function(e){console.log("AI TestGen DevTools panel created"),e.onShown.addListener(function(e){console.log("AI TestGen panel shown"),e.postMessage({type:"PANEL_SHOWN"},"*")}),e.onHidden.addListener(function(){console.log("AI TestGen panel hidden")})});
+//# sourceMappingURL=devtools.js.map
