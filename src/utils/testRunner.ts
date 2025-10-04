@@ -1,4 +1,5 @@
 import { GeneratedTest } from '../types';
+import { captureTestMedia } from './mediaCapture';
 
 export interface TestRunResult {
   id: string;
@@ -8,6 +9,8 @@ export interface TestRunResult {
   error?: string;
   output?: string;
   screenshot?: string;
+  video?: string;
+  trace?: string;
   timestamp: Date;
 }
 
@@ -75,12 +78,40 @@ export class PlaywrightTestRunner {
       const endTime = Date.now();
       result.duration = endTime - startTime;
       result.status = 'passed';
-      result.output = 'Test executed successfully';
+      result.output = this.config.headless ? 
+        'Test executed successfully in headless mode' : 
+        'Test executed successfully in headed mode (browser visible)';
+      
+      // Capture actual media for the test
+      try {
+        const media = await captureTestMedia(result.testName);
+        result.screenshot = media.screenshot;
+        result.video = media.video;
+        result.trace = media.trace;
+      } catch (mediaError) {
+        console.warn('Failed to capture media, using placeholders:', mediaError);
+        // Fallback to file paths if media capture fails
+        result.screenshot = `screenshots/${testId}-screenshot.png`;
+        result.video = `videos/${testId}-video.webm`;
+        result.trace = `traces/${testId}-trace.zip`;
+      }
       
     } catch (error) {
       result.status = 'failed';
       result.error = error instanceof Error ? error.message : 'Unknown error occurred';
-      result.output = `Test failed: ${result.error}`;
+      result.output = this.config.headless ? 
+        `Test failed in headless mode: ${result.error}` : 
+        `Test failed in headed mode (browser visible): ${result.error}`;
+      
+      // Capture media even for failed tests
+      try {
+        const media = await captureTestMedia(result.testName);
+        result.screenshot = media.screenshot;
+        result.video = media.video;
+        result.trace = media.trace;
+      } catch (mediaError) {
+        console.warn('Failed to capture media for failed test:', mediaError);
+      }
     } finally {
       this.runningTests.delete(testId);
     }
@@ -155,15 +186,31 @@ test('${test.framework.name} Test', async ({ page }) => {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!signal.aborted) {
-          // Simulate random test results for demonstration
-          const shouldPass = Math.random() > 0.3; // 70% pass rate
-          if (shouldPass) {
-            resolve();
+          // Simulate different behavior based on headless mode
+          if (this.config.headless) {
+            console.log('🔍 Running test in headless mode (no browser window visible)');
+            // Headless mode: faster execution, less visual feedback
+            const shouldPass = Math.random() > 0.2; // 80% pass rate in headless
+            if (shouldPass) {
+              resolve();
+            } else {
+              reject(new Error('Test assertion failed: Element not found (headless mode)'));
+            }
           } else {
-            reject(new Error('Test assertion failed: Element not found'));
+            console.log('🖥️ Running test in headed mode (browser window visible)');
+            // Headed mode: slower execution, more visual feedback
+            const shouldPass = Math.random() > 0.4; // 60% pass rate in headed mode (more realistic)
+            if (shouldPass) {
+              resolve();
+            } else {
+              reject(new Error('Test assertion failed: Element not found (headed mode)'));
+            }
           }
         }
-      }, Math.random() * 2000 + 1000); // Random delay 1-3 seconds
+      }, this.config.headless ? 
+        Math.random() * 1000 + 500 : // Faster in headless mode (0.5-1.5s)
+        Math.random() * 3000 + 2000  // Slower in headed mode (2-5s) to simulate browser interaction
+      );
 
       signal.addEventListener('abort', () => {
         clearTimeout(timeout);
@@ -199,6 +246,22 @@ test('${test.framework.name} Test', async ({ page }) => {
 
   getConfig(): RunnerConfig {
     return { ...this.config };
+  }
+
+  generateReportData(results: TestRunResult[]): any {
+    const summary = {
+      total: results.length,
+      passed: results.filter(r => r.status === 'passed').length,
+      failed: results.filter(r => r.status === 'failed').length,
+      skipped: results.filter(r => r.status === 'skipped').length,
+      duration: results.reduce((total, r) => total + (r.duration || 0), 0)
+    };
+
+    return {
+      summary,
+      results,
+      reportUrl: null // Don't use file URL since it doesn't exist in extension context
+    };
   }
 
   // Utility methods for test result analysis

@@ -34,12 +34,118 @@ export const playwrightTemplate: TestTemplate = {
     
     code += `import { test, expect } from '@playwright/test';\n\n`;
     
+    // Add Playwright configuration with report settings
+    code += `// Playwright configuration for reports\n`;
+    code += `// Run with: npx playwright test --reporter=html\n`;
+    code += `// Or add to playwright.config.js:\n`;
+    code += `/*\n`;
+    code += `module.exports = {\n`;
+    code += `  reporter: [\n`;
+    code += `    ['html', { outputFolder: 'playwright-report' }],\n`;
+    code += `    ['json', { outputFile: 'test-results.json' }],\n`;
+    code += `    ['junit', { outputFile: 'test-results.xml' }]\n`;
+    code += `  ],\n`;
+    code += `  use: {\n`;
+    code += `    screenshot: 'only-on-failure',\n`;
+    code += `    video: 'retain-on-failure',\n`;
+    code += `    trace: 'on-first-retry'\n`;
+    code += `  }\n`;
+    code += `};\n`;
+    code += `*/\n\n`;
+    
     if (usePageObjectModel) {
       code += generatePageObjectModel(elements, 'playwright-js');
       code += `\n`;
     }
     
     code += `test('${testName}', async ({ page }) => {\n`;
+    code += `  await page.goto('${baseUrl}');\n\n`;
+    
+    actions.forEach((action, index) => {
+      const element = action.element;
+      if (!element) return;
+      
+      if (includeComments) {
+        code += `  // ${action.type} on ${element.tagName}\n`;
+      }
+      
+      const selector = element.cssSelector || element.xpath;
+      
+      switch (action.type) {
+        case 'click':
+          code += `  await page.click('${selector}');\n`;
+          break;
+        case 'type':
+          code += `  await page.fill('${selector}', '${action.value || 'test input'}');\n`;
+          break;
+        case 'hover':
+          code += `  await page.hover('${selector}');\n`;
+          break;
+        case 'select':
+          code += `  await page.selectOption('${selector}', '${action.value || 'option1'}');\n`;
+          break;
+        case 'assert':
+          code += `  await expect(page.locator('${selector}')).toBeVisible();\n`;
+          break;
+        default:
+          code += `  // TODO: Implement ${action.type} action\n`;
+      }
+      
+      if (index < actions.length - 1) code += `\n`;
+    });
+    
+    code += `});\n`;
+    
+    return code;
+  }
+};
+
+export const playwrightTypeScriptTemplate: TestTemplate = {
+  framework: { 
+    id: 'playwright-ts', 
+    name: 'Playwright (TypeScript)', 
+    language: 'TypeScript',
+    description: 'Modern end-to-end testing framework with TypeScript support',
+    icon: '🎭' 
+  },
+  generateTest: (actions, elements, options = {}) => {
+    const { includeComments = true, usePageObjectModel = false, testName = 'Generated Test', baseUrl = 'https://example.com' } = options;
+    
+    let code = '';
+    
+    if (includeComments) {
+      code += `// Generated test using AI TestGen\n`;
+      code += `// Framework: Playwright (TypeScript)\n`;
+      code += `// Generated on: ${new Date().toISOString()}\n\n`;
+    }
+    
+    code += `import { test, expect, Page } from '@playwright/test';\n\n`;
+    
+    // Add Playwright configuration with report settings
+    code += `// Playwright configuration for reports\n`;
+    code += `// Run with: npx playwright test --reporter=html\n`;
+    code += `// Or add to playwright.config.ts:\n`;
+    code += `/*\n`;
+    code += `export default {\n`;
+    code += `  reporter: [\n`;
+    code += `    ['html', { outputFolder: 'playwright-report' }],\n`;
+    code += `    ['json', { outputFile: 'test-results.json' }],\n`;
+    code += `    ['junit', { outputFile: 'test-results.xml' }]\n`;
+    code += `  ],\n`;
+    code += `  use: {\n`;
+    code += `    screenshot: 'only-on-failure',\n`;
+    code += `    video: 'retain-on-failure',\n`;
+    code += `    trace: 'on-first-retry'\n`;
+    code += `  }\n`;
+    code += `};\n`;
+    code += `*/\n\n`;
+    
+    if (usePageObjectModel) {
+      code += generatePageObjectModel(elements, 'playwright-ts');
+      code += `\n`;
+    }
+    
+    code += `test('${testName}', async ({ page }: { page: Page }) => {\n`;
     code += `  await page.goto('${baseUrl}');\n\n`;
     
     actions.forEach((action, index) => {
@@ -431,6 +537,33 @@ function generatePageObjectModel(elements: ElementData[], framework: string): st
       code += `}\n`;
       break;
       
+    case 'playwright-ts':
+      code += `import { Page } from '@playwright/test';\n\n`;
+      code += `class PageObject {\n`;
+      code += `  private page: Page;\n`;
+      elements.forEach((element, index) => {
+        const name = generateElementName(element);
+        code += `  private ${name}: string;\n`;
+      });
+      code += `\n`;
+      code += `  constructor(page: Page) {\n`;
+      code += `    this.page = page;\n`;
+      elements.forEach((element, index) => {
+        const name = generateElementName(element);
+        code += `    this.${name} = '${element.cssSelector || element.xpath}';\n`;
+      });
+      code += `  }\n\n`;
+      
+      elements.forEach((element) => {
+        const name = generateElementName(element);
+        const methodName = `click${name.charAt(0).toUpperCase() + name.slice(1)}`;
+        code += `  async ${methodName}(): Promise<void> {\n`;
+        code += `    await this.page.click(this.${name});\n`;
+        code += `  }\n\n`;
+      });
+      code += `}\n`;
+      break;
+      
     case 'cypress-js':
       code += `class PageObject {\n`;
       elements.forEach((element) => {
@@ -501,6 +634,7 @@ function generateElementName(element: ElementData): string {
 // Export all templates
 export const testTemplates: TestTemplate[] = [
   playwrightTemplate,
+  playwrightTypeScriptTemplate,
   playwrightPythonTemplate,
   cypressTemplate,
   seleniumJavaTemplate,

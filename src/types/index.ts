@@ -130,6 +130,13 @@ export const TEST_FRAMEWORKS: TestFramework[] = [
     icon: '🎭'
   },
   {
+    id: 'playwright-ts',
+    name: 'Playwright',
+    language: 'TypeScript',
+    description: 'Modern end-to-end testing framework with TypeScript support and excellent debugging capabilities',
+    icon: '🎭'
+  },
+  {
     id: 'playwright-python',
     name: 'Playwright',
     language: 'Python',

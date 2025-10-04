@@ -86,7 +86,7 @@ chrome.runtime.onInstalled.addListener(() => {
   
   // Set default settings
   const DEFAULT_SETTINGS: ExtensionSettings = {
-    selectedFramework: 'playwright-js',
+    selectedFramework: 'playwright-ts',
     selectedAIProvider: 'openai',
     apiKeys: {},
     selectedModel: {},
@@ -359,6 +359,27 @@ async function callAIProvider(provider: string, apiKey: string, data: any, frame
   }
 }
 
+// Helper function to clean AI response by removing markdown formatting
+function cleanAIResponse(content: string): string {
+  // Remove markdown code block markers and framework name headers
+  let cleaned = content.trim();
+  
+  // Remove framework name header (e.g., "Playwright (TypeScript) (TypeScript)")
+  const frameworkNamePattern = /^[A-Za-z\s\(\)]+\([A-Za-z\s]+\)\s*\([A-Za-z\s]+\)\s*\n/;
+  cleaned = cleaned.replace(frameworkNamePattern, '');
+  
+  // Remove opening markdown code block
+  cleaned = cleaned.replace(/^```(?:typescript|javascript|python|java|js|ts)?\s*\n/, '');
+  
+  // Remove closing markdown code block
+  cleaned = cleaned.replace(/\n```\s*$/, '');
+  
+  // Remove any remaining markdown code block markers
+  cleaned = cleaned.replace(/^```.*\n/, '').replace(/\n```.*$/, '');
+  
+  return cleaned.trim();
+}
+
 function buildPrompt(data: any, framework?: TestFramework, settings?: ExtensionSettings): string {
   const { actions, elements, userPrompt, pageContext } = data;
   const frameworkInfo = framework || data.framework;
@@ -464,7 +485,8 @@ async function callOpenAI(apiKey: string, prompt: string, model?: string): Promi
     throw new Error(data.error?.message || 'OpenAI API error');
   }
   
-  return data.choices[0].message.content;
+  const content = data.choices[0].message.content;
+  return cleanAIResponse(content);
 }
 
 async function callAnthropic(apiKey: string, prompt: string, model?: string): Promise<string> {
@@ -493,7 +515,8 @@ async function callAnthropic(apiKey: string, prompt: string, model?: string): Pr
     throw new Error(data.error?.message || 'Anthropic API error');
   }
   
-  return data.content[0].text;
+  const content = data.content[0].text;
+  return cleanAIResponse(content);
 }
 
 async function callDeepSeek(apiKey: string, prompt: string, model?: string): Promise<string> {
@@ -526,7 +549,8 @@ async function callDeepSeek(apiKey: string, prompt: string, model?: string): Pro
     throw new Error(data.error?.message || 'DeepSeek API error');
   }
   
-  return data.choices[0].message.content;
+  const content = data.choices[0].message.content;
+  return cleanAIResponse(content);
 }
 
 async function callGroq(apiKey: string, prompt: string, model?: string): Promise<string> {
@@ -559,7 +583,8 @@ async function callGroq(apiKey: string, prompt: string, model?: string): Promise
     throw new Error(data.error?.message || 'Groq API error');
   }
   
-  return data.choices[0].message.content;
+  const content = data.choices[0].message.content;
+  return cleanAIResponse(content);
 }
 
 async function callLocalProvider(config?: LocalSetupConfig, prompt?: string): Promise<string> {
@@ -603,7 +628,8 @@ async function callLocalProvider(config?: LocalSetupConfig, prompt?: string): Pr
     }
     
     const data = await response.json();
-    return data.response || data.text || data.content;
+    const content = data.response || data.text || data.content;
+    return cleanAIResponse(content);
   } catch (error: any) {
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(`Cannot connect to local AI service at ${config.endpoint}. Please ensure Ollama is running: 'ollama serve'`);
@@ -652,7 +678,8 @@ async function callOpenRouter(config?: OpenRouterConfig, prompt?: string, model?
   }
   
   const data = await response.json();
-  return data.choices[0].message.content;
+  const content = data.choices[0].message.content;
+  return cleanAIResponse(content);
 }
 
 async function handleSaveTest(test: GeneratedTest, sendResponse: (response: any) => void) {
@@ -745,7 +772,7 @@ async function handleSaveChatMessage(message: ChatMessage, sendResponse: (respon
 async function getStoredSettings(): Promise<ExtensionSettings> {
   const result = await chrome.storage.sync.get(['settings']);
   return result.settings || {
-    selectedFramework: 'playwright-js',
+    selectedFramework: 'playwright-ts',
     selectedAIProvider: 'openai',
     apiKeys: {},
     selectedModel: {},
