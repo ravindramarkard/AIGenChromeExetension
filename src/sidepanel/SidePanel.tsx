@@ -24,21 +24,33 @@ const SidePanel: React.FC = () => {
 
   const loadSettings = async () => {
     try {
+      console.log('🔧 SidePanel: Loading settings...');
       const response = await chrome.runtime.sendMessage({ action: 'getSettings' });
+      console.log('🔧 SidePanel: Settings response:', response);
       if (response.success) {
         setSettings(response.settings);
+        console.log('✅ SidePanel: Settings loaded successfully:', response.settings);
+      } else {
+        console.error('❌ SidePanel: Failed to load settings:', response.error);
       }
     } catch (error) {
-      console.error('Failed to load settings:', error);
+      console.error('❌ SidePanel: Error loading settings:', error);
     }
   };
 
   const saveSettings = async (newSettings: ExtensionSettings) => {
     try {
-      await chrome.runtime.sendMessage({ action: 'updateSettings', data: newSettings });
-      setSettings(newSettings);
+      console.log('💾 SidePanel: Saving settings:', newSettings);
+      const response = await chrome.runtime.sendMessage({ action: 'updateSettings', data: newSettings });
+      console.log('💾 SidePanel: Save response:', response);
+      if (response.success) {
+        setSettings(newSettings);
+        console.log('✅ SidePanel: Settings saved successfully');
+      } else {
+        console.error('❌ SidePanel: Failed to save settings:', response.error);
+      }
     } catch (error) {
-      console.error('Failed to save settings:', error);
+      console.error('❌ SidePanel: Error saving settings:', error);
     }
   };
 
@@ -1238,21 +1250,38 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
   const [localSettings, setLocalSettings] = useState<ExtensionSettings>(settings);
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
   const [debugMode, setDebugMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const [inputTokenThreshold, setInputTokenThreshold] = useState(10000);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ isConnected: false });
   const [isTestingConnection, setIsTestingConnection] = useState(false);
 
+  const saveSettingsWithStatus = async (newSettings: ExtensionSettings) => {
+    setIsSaving(true);
+    setSaveStatus('saving');
+    try {
+      await onSaveSettings(newSettings);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000); // Reset after 2 seconds
+    } catch (error) {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000); // Reset after 3 seconds
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleFrameworkChange = (frameworkId: string) => {
     const newSettings = { ...localSettings, selectedFramework: frameworkId };
     setLocalSettings(newSettings);
-    onSaveSettings(newSettings);
+    saveSettingsWithStatus(newSettings);
   };
 
   const handleProviderChange = (providerId: string) => {
     const newSettings = { ...localSettings, selectedAIProvider: providerId };
     setLocalSettings(newSettings);
-    onSaveSettings(newSettings);
+    saveSettingsWithStatus(newSettings);
   };
 
   const handleApiKeyChange = (providerId: string, apiKey: string) => {
@@ -1261,7 +1290,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
       apiKeys: { ...localSettings.apiKeys, [providerId]: apiKey }
     };
     setLocalSettings(newSettings);
-    onSaveSettings(newSettings);
+    saveSettingsWithStatus(newSettings);
   };
 
   const toggleApiKeyVisibility = (providerId: string) => {
@@ -1276,7 +1305,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
       selectedModel: { ...localSettings.selectedModel, [providerId]: model }
     };
     setLocalSettings(newSettings);
-    onSaveSettings(newSettings);
+    saveSettingsWithStatus(newSettings);
   };
 
   const handleLocalSetupChange = (field: keyof LocalSetupConfig, value: string | number) => {
@@ -1285,7 +1314,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
       localSetup: { ...localSettings.localSetup, [field]: value }
     };
     setLocalSettings(newSettings);
-    onSaveSettings(newSettings);
+    saveSettingsWithStatus(newSettings);
   };
 
   const handleOpenRouterChange = (field: keyof OpenRouterConfig, value: string | number) => {
@@ -1294,7 +1323,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
       openRouterConfig: { ...localSettings.openRouterConfig, [field]: value }
     };
     setLocalSettings(newSettings);
-    onSaveSettings(newSettings);
+    saveSettingsWithStatus(newSettings);
   };
 
   const testConnection = async () => {
@@ -1396,6 +1425,36 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
       padding: '20px',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
+      {/* Save Status Indicator */}
+      {saveStatus !== 'idle' && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: '500',
+          zIndex: 1000,
+          backgroundColor: saveStatus === 'saving' ? '#fef3c7' : 
+                          saveStatus === 'saved' ? '#d1fae5' : '#fecaca',
+          color: saveStatus === 'saving' ? '#92400e' : 
+                 saveStatus === 'saved' ? '#065f46' : '#991b1b',
+          border: `1px solid ${saveStatus === 'saving' ? '#f59e0b' : 
+                              saveStatus === 'saved' ? '#10b981' : '#ef4444'}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          {saveStatus === 'saving' && <Loader className="w-4 h-4 animate-spin" />}
+          {saveStatus === 'saved' && <CheckCircle className="w-4 h-4" />}
+          {saveStatus === 'error' && <XCircle className="w-4 h-4" />}
+          {saveStatus === 'saving' && 'Saving settings...'}
+          {saveStatus === 'saved' && 'Settings saved!'}
+          {saveStatus === 'error' && 'Failed to save settings'}
+        </div>
+      )}
+
       {/* Script Type Section */}
       <div style={{ marginBottom: '24px' }}>
         <h3 style={{ 
@@ -1972,6 +2031,76 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
             <span style={{ color: '#1e293b', fontSize: '14px' }}>Use Page Object Model pattern</span>
           </label>
         </div>
+      </div>
+
+      {/* Reset Settings Button */}
+      <div style={{
+        backgroundColor: '#ffffff',
+        border: '2px solid #e2e8f0',
+        borderRadius: '8px',
+        padding: '16px',
+        marginBottom: '20px'
+      }}>
+        <h4 style={{ 
+          fontSize: '16px', 
+          fontWeight: '600', 
+          marginBottom: '16px',
+          color: '#1e293b'
+        }}>
+          Reset Settings
+        </h4>
+        <p style={{
+          fontSize: '14px',
+          color: '#64748b',
+          marginBottom: '16px'
+        }}>
+          Reset all settings to their default values. This will clear your API keys and configurations.
+        </p>
+        <button
+          onClick={() => {
+            if (confirm('Are you sure you want to reset all settings? This will clear your API keys and configurations.')) {
+              const defaultSettings: ExtensionSettings = {
+                selectedFramework: 'playwright-js',
+                selectedAIProvider: 'openai',
+                apiKeys: {},
+                selectedModel: {},
+                localSetup: {
+                  endpoint: 'http://localhost:11434',
+                  model: 'llama-3.1'
+                },
+                openRouterConfig: {
+                  apiKey: '',
+                  model: 'openai/gpt-3.5-turbo'
+                },
+                connectionStatus: {},
+                autoGenerate: false,
+                includeComments: true,
+                usePageObjectModel: false
+              };
+              setLocalSettings(defaultSettings);
+              saveSettingsWithStatus(defaultSettings);
+            }
+          }}
+          style={{
+            padding: '10px 16px',
+            borderRadius: '6px',
+            fontWeight: '500',
+            fontSize: '14px',
+            border: '1px solid #ef4444',
+            cursor: 'pointer',
+            backgroundColor: '#fef2f2',
+            color: '#dc2626',
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = '#fee2e2';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = '#fef2f2';
+          }}
+        >
+          Reset All Settings
+        </button>
       </div>
     </div>
   );

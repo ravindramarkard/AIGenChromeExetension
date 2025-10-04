@@ -9,8 +9,7 @@
     "scripting",
     "tabs",
     "webNavigation",
-    "sidePanel",
-    "contextMenus"
+    "sidePanel"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -28,7 +27,6 @@
   ],
   "action": {
     "default_title": "AI TestGen - Generate Test Code",
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

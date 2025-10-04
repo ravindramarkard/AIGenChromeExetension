@@ -107,31 +107,26 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.sync.set({ settings: DEFAULT_SETTINGS });
 });
 
-// Handle action click - popup will open by default
-// Side panel can be opened via context menu or programmatically
-
-// Add context menu for side panel
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'openSidePanel',
-    title: 'Open AI TestGen Side Panel',
-    contexts: ['action']
-  });
-});
-
-// Handle context menu clicks
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'openSidePanel' && tab?.id) {
+// Handle action click - always open side panel
+chrome.action.onClicked.addListener(async (tab) => {
+  try {
+    console.log('🖱️ Background: Extension icon clicked, opening side panel...');
+    if (chrome.sidePanel && chrome.sidePanel.open) {
+      await chrome.sidePanel.open({ tabId: tab.id });
+      console.log('✅ Background: Side panel opened successfully');
+    } else {
+      console.warn('⚠️ Background: Side panel API not available, falling back to popup');
+      // Fallback: open popup if side panel is not available
+      chrome.action.setPopup({ popup: 'popup.html' });
+      // Note: This will require user to click again to open popup
+    }
+  } catch (error) {
+    console.error('❌ Background: Failed to open side panel:', error);
+    // Fallback to popup on error
     try {
-      if (chrome.sidePanel && chrome.sidePanel.open) {
-        await chrome.sidePanel.open({ tabId: tab.id });
-      } else {
-        console.warn('Side panel API not available');
-        // Fallback: open popup
-        chrome.action.setPopup({ popup: 'popup.html' });
-      }
-    } catch (error) {
-      console.error('Failed to open side panel:', error);
+      chrome.action.setPopup({ popup: 'popup.html' });
+    } catch (popupError) {
+      console.error('❌ Background: Failed to set popup fallback:', popupError);
     }
   }
 });
@@ -699,17 +694,22 @@ async function handleSaveTest(test: GeneratedTest, sendResponse: (response: any)
 async function handleGetSettings(sendResponse: (response: any) => void) {
   try {
     const settings = await getStoredSettings();
+    console.log('🔧 Background: Retrieved settings:', settings);
     sendResponse({ success: true, settings });
   } catch (error) {
+    console.error('❌ Background: Error getting settings:', error);
     sendResponse({ error: error instanceof Error ? error.message : 'Unknown error occurred' });
   }
 }
 
 async function handleUpdateSettings(settings: ExtensionSettings, sendResponse: (response: any) => void) {
   try {
+    console.log('💾 Background: Saving settings:', settings);
     await chrome.storage.sync.set({ settings });
+    console.log('✅ Background: Settings saved successfully');
     sendResponse({ success: true });
   } catch (error) {
+    console.error('❌ Background: Error saving settings:', error);
     sendResponse({ error: error instanceof Error ? error.message : 'Unknown error occurred' });
   }
 }
@@ -745,9 +745,19 @@ async function handleSaveChatMessage(message: ChatMessage, sendResponse: (respon
 async function getStoredSettings(): Promise<ExtensionSettings> {
   const result = await chrome.storage.sync.get(['settings']);
   return result.settings || {
-    selectedFramework: 'playwright-ts',
+    selectedFramework: 'playwright-js',
     selectedAIProvider: 'openai',
     apiKeys: {},
+    selectedModel: {},
+    localSetup: {
+      endpoint: 'http://localhost:11434',
+      model: 'llama-3.1'
+    },
+    openRouterConfig: {
+      apiKey: '',
+      model: 'openai/gpt-3.5-turbo'
+    },
+    connectionStatus: {},
     autoGenerate: false,
     includeComments: true,
     usePageObjectModel: false
