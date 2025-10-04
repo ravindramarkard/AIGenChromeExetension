@@ -107,6 +107,35 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.sync.set({ settings: DEFAULT_SETTINGS });
 });
 
+// Handle action click - popup will open by default
+// Side panel can be opened via context menu or programmatically
+
+// Add context menu for side panel
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: 'openSidePanel',
+    title: 'Open AI TestGen Side Panel',
+    contexts: ['action']
+  });
+});
+
+// Handle context menu clicks
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'openSidePanel' && tab?.id) {
+    try {
+      if (chrome.sidePanel && chrome.sidePanel.open) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+      } else {
+        console.warn('Side panel API not available');
+        // Fallback: open popup
+        chrome.action.setPopup({ popup: 'popup.html' });
+      }
+    } catch (error) {
+      console.error('Failed to open side panel:', error);
+    }
+  }
+});
+
 // Handle messages from content scripts and popup
 chrome.runtime.onMessage.addListener((request: any, sender: chrome.runtime.MessageSender, sendResponse: (response: any) => void) => {
   switch (request.action) {

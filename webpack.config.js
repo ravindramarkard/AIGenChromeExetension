@@ -5,6 +5,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 module.exports = {
   entry: {
     popup: './src/popup/index.tsx',
+    sidepanel: './src/sidepanel/index.tsx',
     content: './src/content/content.ts',
     background: './src/background/background.ts',
     devtools: './src/devtools/devtools.ts',
@@ -48,6 +49,11 @@ module.exports = {
       template: './src/popup/popup.html',
       filename: 'popup.html',
       chunks: ['popup']
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/sidepanel/sidepanel.html',
+      filename: 'sidepanel.html',
+      chunks: ['sidepanel']
     }),
     new HtmlWebpackPlugin({
       template: './src/devtools/devtools.html',

@@ -8,7 +8,9 @@
     "storage",
     "scripting",
     "tabs",
-    "webNavigation"
+    "webNavigation",
+    "sidePanel",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -25,14 +27,17 @@
     }
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_title": "AI TestGen - Generate Test Code",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "devtools_page": "devtools.html",
   "icons": {
