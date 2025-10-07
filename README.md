@@ -23,6 +23,7 @@ A powerful Chrome extension that uses AI to automatically generate test code for
 - Anthropic (Claude)
 - DeepSeek
 - Groq
+- **Local Custom LLM** (Ollama, LM Studio, vLLM, Text Generation WebUI, LocalAI, etc.)
 
 ## Installation
 
@@ -105,6 +106,30 @@ The extension provides visual feedback when selecting elements:
 #### Groq
 1. Get an API key from [Groq](https://console.groq.com/)
 2. Enter the key in the extension settings
+
+#### Local Custom LLM
+Configure your own local or self-hosted LLM server. The extension supports two API formats:
+
+**OpenAI-Compatible APIs** (automatic detection for endpoints with `/v1`):
+- **LM Studio**: `http://localhost:1234/v1`
+- **vLLM**: Your vLLM server endpoint + `/v1`
+- **Text Generation WebUI**: `http://localhost:5000/v1`
+- **LocalAI**: Your LocalAI endpoint + `/v1`
+- **Custom OpenAI-compatible servers**: Any endpoint ending with `/v1`
+
+**Ollama API** (for endpoints without `/v1`):
+- **Ollama**: `http://localhost:11434`
+
+**Setup Steps:**
+1. In extension settings, select "Local Setup" as AI provider
+2. Enter your endpoint URL (e.g., `http://10.100.100.102:5013/v1`)
+3. Enter your model name (e.g., `qwen-coder`, `llama-3.1`, `codellama`)
+4. Click "Test Connection" to verify the setup
+5. Optionally configure temperature and max tokens
+
+The extension automatically detects the API format based on your endpoint URL:
+- URLs containing `/v1` use OpenAI-compatible format (`/chat/completions`)
+- Other URLs use Ollama format (`/api/generate`)
 
 ### Testing Framework Options
 

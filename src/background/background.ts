@@ -600,39 +600,121 @@ async function callLocalProvider(config?: LocalSetupConfig, prompt?: string): Pr
     throw new Error('Local AI model not specified. Please set model name (e.g., llama3.1:8b, codellama) in settings.');
   }
   
+  // Detect API format: OpenAI-compatible vs Ollama
+  const endpoint = config.endpoint.trim();
+  const isOpenAICompatible = endpoint.includes('/v1') || endpoint.endsWith('/v1');
+  
+  const systemPrompt = 'You are an expert test automation engineer specializing in creating robust, maintainable test code. Focus on best practices, proper error handling, and reliable selectors.';
+  
   try {
-    const response = await loggedFetch(`${config.endpoint}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    let apiUrl: string;
+    let requestBody: any;
+    let response: Response | null = null;
+    
+    if (isOpenAICompatible) {
+      // OpenAI-compatible API (LM Studio, vLLM, Text Generation WebUI, etc.)
+      const chatUrl = endpoint.endsWith('/v1') 
+        ? `${endpoint}/chat/completions`
+        : `${endpoint}/v1/chat/completions`;
+      
+      const chatBody = {
         model: config.model,
-        prompt: `You are an expert test automation engineer specializing in creating robust, maintainable test code. Focus on best practices, proper error handling, and reliable selectors.\n\n${prompt}`,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
         temperature: config.temperature || 0.1,
         max_tokens: config.maxTokens || 3000,
         stream: false
-      })
-    }, 'Local Provider', config.model);
+      };
+      
+      // First try chat/completions
+      apiUrl = chatUrl;
+      requestBody = chatBody;
+      response = await loggedFetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      }, 'Local Provider', config.model);
+
+      // If 404, some servers only support legacy completions
+      if (response.status === 404) {
+        const compUrl = endpoint.endsWith('/v1') 
+          ? `${endpoint}/completions`
+          : `${endpoint}/v1/completions`;
+        const compBody = {
+          model: config.model,
+          prompt: `${systemPrompt}\n\n${prompt}`,
+          temperature: config.temperature || 0.1,
+          max_tokens: config.maxTokens || 3000,
+          stream: false
+        };
+        apiUrl = compUrl;
+        requestBody = compBody;
+        response = await loggedFetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        }, 'Local Provider', config.model);
+      }
+    } else {
+      // Ollama API format
+      apiUrl = `${endpoint}/api/generate`;
+      requestBody = {
+        model: config.model,
+        prompt: `${systemPrompt}\n\n${prompt}`,
+        temperature: config.temperature || 0.1,
+        max_tokens: config.maxTokens || 3000,
+        stream: false
+      };
+      response = await loggedFetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      }, 'Local Provider', config.model);
+    }
+    
+    if (!response) {
+      throw new Error('No response from local AI service');
+    }
     
     if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
       if (response.status === 403) {
-        throw new Error(`Local AI service forbidden. Check if Ollama is running and accessible at ${config.endpoint}`);
+        throw new Error(`Local AI service forbidden (403). Check if the service is accessible at ${config.endpoint}`);
       } else if (response.status === 404) {
-        throw new Error(`Model '${config.model}' not found. Run: ollama pull ${config.model}`);
+        throw new Error(`Endpoint not found (404). Verify the endpoint URL and model name. URL tried: ${apiUrl}`);
       } else if (response.status >= 500) {
-        throw new Error(`Local AI service error (${response.status}). Check if Ollama is running properly.`);
+        throw new Error(`Local AI service error (${response.status}). Error: ${errorText}`);
       } else {
-        throw new Error(`Local provider error: ${response.statusText} (${response.status})`);
+        throw new Error(`Local provider error: ${errorText} (${response.status})`);
       }
     }
     
     const data = await response.json();
-    const content = data.response || data.text || data.content;
+    
+    // Handle different response formats
+    let content: string;
+    if (isOpenAICompatible) {
+      // Try chat format first
+      content = data.choices?.[0]?.message?.content
+        // Fallbacks for legacy/text responses
+        || data.choices?.[0]?.text
+        || data.content
+        || data.text;
+    } else {
+      // Ollama format
+      content = data.response || data.text || data.content;
+    }
+    
+    if (!content) {
+      throw new Error('No content received from local AI service. Response format may be unexpected.');
+    }
+    
     return cleanAIResponse(content);
   } catch (error: any) {
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      throw new Error(`Cannot connect to local AI service at ${config.endpoint}. Please ensure Ollama is running: 'ollama serve'`);
+      throw new Error(`Cannot connect to local AI service at ${config.endpoint}. Please ensure the service is running and accessible.`);
     }
     throw error;
   }

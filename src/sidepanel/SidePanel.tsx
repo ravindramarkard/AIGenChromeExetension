@@ -1467,11 +1467,25 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
     try {
       let testUrl = '';
       let headers: Record<string, string> = {};
+      let requestBody: any = null;
+      let method: 'GET' | 'POST' = 'GET';
       
       if (provider?.type === 'local') {
-        testUrl = localSettings.localSetup?.endpoint || provider.baseUrl || 'http://localhost:11434';
-        // Test local endpoint health
-        testUrl += '/api/tags'; // Ollama health check endpoint
+        const endpoint = (localSettings.localSetup?.endpoint || provider.baseUrl || 'http://localhost:11434').trim();
+        const isOpenAICompatible = endpoint.includes('/v1');
+
+        if (isOpenAICompatible) {
+          // Prefer models for a cheap connectivity check
+          const baseV1 = endpoint.endsWith('/v1') ? endpoint : `${endpoint}/v1`;
+          // Try /models first (GET)
+          testUrl = `${baseV1}/models`;
+          method = 'GET';
+          headers['Content-Type'] = 'application/json';
+        } else {
+          // Ollama: list tags
+          testUrl = `${endpoint}/api/tags`;
+          method = 'GET';
+        }
       } else if (provider?.type === 'openrouter') {
         testUrl = 'https://openrouter.ai/api/v1/models';
         const apiKey = localSettings.openRouterConfig?.apiKey || '';
@@ -1491,11 +1505,54 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
       }
 
       const startTime = Date.now();
-      const response = await fetch(testUrl, {
-        method: 'GET',
+      const fetchOptions: RequestInit = {
+        method,
         headers,
         signal: AbortSignal.timeout(10000) // 10 second timeout
-      });
+      };
+      
+      if (requestBody) {
+        fetchOptions.body = JSON.stringify(requestBody);
+      }
+      
+      let response = await fetch(testUrl, fetchOptions);
+
+      // For OpenAI-compatible local servers, if /v1/models is 404, fallback to a minimal completion
+      if (provider?.type === 'local') {
+        const endpoint = (localSettings.localSetup?.endpoint || provider?.baseUrl || 'http://localhost:11434').trim();
+        const isOpenAICompatible = endpoint.includes('/v1');
+        if (isOpenAICompatible && response.status === 404) {
+          // Try chat/completions
+          const baseV1 = endpoint.endsWith('/v1') ? endpoint : `${endpoint}/v1`;
+          let fallbackUrl = `${baseV1}/chat/completions`;
+          let fallbackBody: any = {
+            model: localSettings.localSetup?.model || 'test',
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 1
+          };
+          response = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(10000),
+            body: JSON.stringify(fallbackBody)
+          });
+          if (response.status === 404) {
+            // Try legacy completions
+            fallbackUrl = `${baseV1}/completions`;
+            fallbackBody = {
+              model: localSettings.localSetup?.model || 'test',
+              prompt: 'test',
+              max_tokens: 1
+            };
+            response = await fetch(fallbackUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(10000),
+              body: JSON.stringify(fallbackBody)
+            });
+          }
+        }
+      }
 
       const latency = Date.now() - startTime;
 
@@ -1886,6 +1943,46 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
                 onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
               />
+            </div>
+
+            {/* Info Box */}
+            <div style={{
+              backgroundColor: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '6px',
+              padding: '12px',
+              marginTop: '12px'
+            }}>
+              <div style={{
+                fontSize: '13px',
+                color: '#0369a1',
+                fontWeight: '500',
+                marginBottom: '8px'
+              }}>
+                ℹ️ Supported API Formats
+              </div>
+              <div style={{
+                fontSize: '12px',
+                color: '#075985',
+                lineHeight: '1.5'
+              }}>
+                <strong>OpenAI-compatible APIs</strong> (endpoint with <code style={{
+                  backgroundColor: '#e0f2fe',
+                  padding: '2px 4px',
+                  borderRadius: '3px',
+                  fontFamily: 'monospace'
+                }}>/v1</code>):<br/>
+                • LM Studio: <code style={{ fontFamily: 'monospace', fontSize: '11px' }}>http://localhost:1234/v1</code><br/>
+                • vLLM, Text Generation WebUI, LocalAI, etc.<br/>
+                <br/>
+                <strong>Ollama API</strong> (without <code style={{
+                  backgroundColor: '#e0f2fe',
+                  padding: '2px 4px',
+                  borderRadius: '3px',
+                  fontFamily: 'monospace'
+                }}>/v1</code>):<br/>
+                • <code style={{ fontFamily: 'monospace', fontSize: '11px' }}>http://localhost:11434</code>
+              </div>
             </div>
           </div>
         )}
