@@ -12,9 +12,10 @@ export interface AIProvider {
   apiKeyRequired: boolean;
   models: string[];
   costPerToken?: number;
-  type: 'cloud' | 'local' | 'openrouter';
+  type: 'cloud' | 'local' | 'openrouter' | 'manual';
   baseUrl?: string;
   requiresCustomEndpoint?: boolean;
+  isCustom?: boolean;
 }
 
 export interface LocalSetupConfig {
@@ -29,6 +30,16 @@ export interface OpenRouterConfig {
   model: string;
   temperature?: number;
   maxTokens?: number;
+}
+
+export interface CustomProviderConfig {
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
+  headers?: Record<string, string>;
 }
 
 export interface ConnectionStatus {
@@ -98,6 +109,7 @@ export interface ExtensionSettings {
   selectedModel: Record<string, string>;
   localSetup: LocalSetupConfig;
   openRouterConfig: OpenRouterConfig;
+  customProviderConfig: CustomProviderConfig;
   connectionStatus: Record<string, ConnectionStatus>;
   autoGenerate: boolean;
   includeComments: boolean;
@@ -230,5 +242,14 @@ export const AI_PROVIDERS: AIProvider[] = [
     costPerToken: 0.000002,
     type: 'openrouter',
     baseUrl: 'https://openrouter.ai/api/v1'
+  },
+  {
+    id: 'manual',
+    name: 'Manual Provider',
+    apiKeyRequired: true,
+    models: ['custom'],
+    type: 'manual',
+    requiresCustomEndpoint: true,
+    isCustom: true
   }
 ];

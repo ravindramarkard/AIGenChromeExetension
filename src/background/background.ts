@@ -1,5 +1,5 @@
 /// <reference types="chrome"/>
-import { ExtensionSettings, GeneratedTest, ChatMessage, TestFramework, AIProvider, ElementData, TestAction, LocalSetupConfig, OpenRouterConfig, APICallLog, APIRequest, APIResponse } from '../types';
+import { ExtensionSettings, GeneratedTest, ChatMessage, TestFramework, AIProvider, ElementData, TestAction, LocalSetupConfig, OpenRouterConfig, CustomProviderConfig, APICallLog, APIRequest, APIResponse } from '../types';
 import { getTemplateByFramework, TestGenerationOptions } from '../utils/testTemplates';
 
 // Global storage for API calls during test generation
@@ -200,6 +200,30 @@ chrome.runtime.onMessage.addListener((request: any, sender: chrome.runtime.Messa
       })();
       return true;
       
+    case 'fetchOpenRouterModels':
+      (async () => {
+        try {
+          const models = await fetchOpenRouterModels(request.apiKey);
+          sendResponse({ success: true, models });
+        } catch (error) {
+          console.error('Error fetching OpenRouter models:', error);
+          sendResponse({ error: error instanceof Error ? error.message : 'Unknown error occurred' });
+        }
+      })();
+      return true;
+      
+    case 'getAllOpenRouterModels':
+      (async () => {
+        try {
+          const models = await fetchOpenRouterModels(request.apiKey);
+          sendResponse({ success: true, models });
+        } catch (error) {
+          console.error('Error fetching all OpenRouter models:', error);
+          sendResponse({ error: error instanceof Error ? error.message : 'Unknown error occurred' });
+        }
+      })();
+      return true;
+      
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -354,6 +378,8 @@ async function callAIProvider(provider: string, apiKey: string, data: any, frame
       return await callLocalProvider(settings?.localSetup, prompt);
     case 'openrouter':
       return await callOpenRouter(settings?.openRouterConfig, prompt, selectedModel);
+    case 'manual':
+      return await callCustomProvider(settings?.customProviderConfig, prompt);
     default:
       throw new Error(`Unsupported AI provider: ${provider}`);
   }
@@ -762,6 +788,105 @@ async function callOpenRouter(config?: OpenRouterConfig, prompt?: string, model?
   const data = await response.json();
   const content = data.choices[0].message.content;
   return cleanAIResponse(content);
+}
+
+async function callCustomProvider(config?: CustomProviderConfig, prompt?: string): Promise<string> {
+  if (!config || !prompt) {
+    throw new Error('Custom provider configuration or prompt missing');
+  }
+  
+  if (!config.baseUrl || !config.apiKey || !config.model) {
+    throw new Error('Custom provider configuration is incomplete');
+  }
+  
+  const response = await loggedFetch(`${config.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      ...config.headers
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert test automation engineer specializing in creating robust, maintainable test code. Focus on best practices, proper error handling, and reliable selectors.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: config.temperature || 0.1,
+      max_tokens: config.maxTokens || 3000
+    })
+  }, 'Custom Provider', config.model);
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error?.message || 'Custom provider API error');
+  }
+  
+  const data = await response.json();
+  const content = data.choices[0].message.content;
+  return cleanAIResponse(content);
+}
+
+async function fetchOpenRouterModels(apiKey: string): Promise<{id: string, name: string, context_length: number, pricing: any}[]> {
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://ai-testgen-extension.com',
+        'X-Title': 'AI TestGen Extension',
+        'User-Agent': 'AI-TestGen-Extension/1.0.0'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenRouter API error response:', errorText);
+      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}. ${errorText.includes('<!DOCTYPE') ? 'Invalid API key or endpoint.' : errorText}`);
+    }
+
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await response.text();
+      console.error('Non-JSON response from OpenRouter:', responseText);
+      throw new Error('OpenRouter API returned non-JSON response. Please check your API key.');
+    }
+
+    const data = await response.json();
+    
+    if (!data || !data.data) {
+      throw new Error('Invalid response format from OpenRouter API');
+    }
+
+    console.log('OpenRouter API response:', data);
+    console.log('Total models received:', data.data?.length);
+
+    const models = data.data?.map((model: any) => ({
+      id: model.id,
+      name: model.name || model.id,
+      context_length: model.context_length || 0,
+      pricing: model.pricing || {}
+    })) || [];
+
+    console.log('Processed models:', models.length);
+    console.log('Sample models:', models.slice(0, 5));
+    
+    return models;
+  } catch (error) {
+    console.error('Error fetching OpenRouter models:', error);
+    if (error instanceof Error && error.message.includes('Unexpected token')) {
+      throw new Error('OpenRouter API returned HTML instead of JSON. Please check your API key and try again.');
+    }
+    throw error;
+  }
 }
 
 async function handleSaveTest(test: GeneratedTest, sendResponse: (response: any) => void) {

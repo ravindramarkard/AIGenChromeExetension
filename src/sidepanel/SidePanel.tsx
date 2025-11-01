@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Play, Code, Zap, Brain, Key, Wifi, WifiOff, CheckCircle, XCircle, Loader, MessageSquarePlus, TestTube } from 'lucide-react';
-import { TEST_FRAMEWORKS, AI_PROVIDERS, ExtensionSettings, TestFramework, AIProvider, ConnectionStatus, LocalSetupConfig, OpenRouterConfig, GeneratedTest } from '../types';
+import { TEST_FRAMEWORKS, AI_PROVIDERS, ExtensionSettings, TestFramework, AIProvider, ConnectionStatus, LocalSetupConfig, OpenRouterConfig, CustomProviderConfig, GeneratedTest } from '../types';
+import { fetchAllOpenRouterModels, OpenRouterModel, groupModelsByProvider, getModelDisplayName, searchModels, logAllModelIds, getFreeModels, logFreeModels } from '../utils/openRouterModels';
 import { TestRunnerPanel } from '../components/TestRunnerPanel';
 
 const SidePanel: React.FC = () => {
@@ -1390,6 +1391,17 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
   const [inputTokenThreshold, setInputTokenThreshold] = useState(10000);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ isConnected: false });
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelSearchTerm, setModelSearchTerm] = useState('');
+  const [showFreeModelsOnly, setShowFreeModelsOnly] = useState(false);
+
+  // Auto-fetch OpenRouter models when component loads if OpenRouter is selected
+  useEffect(() => {
+    if (localSettings.selectedAIProvider === 'openrouter' && localSettings.openRouterConfig?.apiKey) {
+      fetchOpenRouterModelsList();
+    }
+  }, [localSettings.selectedAIProvider, localSettings.openRouterConfig?.apiKey]);
 
   const saveSettingsWithStatus = async (newSettings: ExtensionSettings) => {
     setIsSaving(true);
@@ -1416,6 +1428,11 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
     const newSettings = { ...localSettings, selectedAIProvider: providerId };
     setLocalSettings(newSettings);
     saveSettingsWithStatus(newSettings);
+    
+    // Auto-fetch OpenRouter models when OpenRouter is selected
+    if (providerId === 'openrouter' && localSettings.openRouterConfig?.apiKey) {
+      fetchOpenRouterModelsList();
+    }
   };
 
   const handleApiKeyChange = (providerId: string, apiKey: string) => {
@@ -1458,6 +1475,56 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
     };
     setLocalSettings(newSettings);
     saveSettingsWithStatus(newSettings);
+    
+    // Auto-fetch models when API key is entered and OpenRouter is selected
+    if (field === 'apiKey' && value && localSettings.selectedAIProvider === 'openrouter') {
+      // Small delay to ensure the state is updated
+      setTimeout(() => {
+        fetchOpenRouterModelsList();
+      }, 100);
+    }
+  };
+
+  const handleCustomProviderChange = (field: keyof CustomProviderConfig, value: string | number) => {
+    const newSettings = {
+      ...localSettings,
+      customProviderConfig: { ...localSettings.customProviderConfig, [field]: value }
+    };
+    setLocalSettings(newSettings);
+    saveSettingsWithStatus(newSettings);
+  };
+
+  const fetchOpenRouterModelsList = async () => {
+    if (!localSettings.openRouterConfig?.apiKey) {
+      alert('Please enter your OpenRouter API key first');
+      return;
+    }
+
+    setIsLoadingModels(true);
+    try {
+      const models = await fetchAllOpenRouterModels(localSettings.openRouterConfig.apiKey);
+      setOpenRouterModels(models);
+      
+      // Debug logging
+      console.log('Fetched OpenRouter models:', models.length);
+      logAllModelIds(models);
+      
+      // Log free models specifically
+      logFreeModels(models);
+      
+      // Search for specific models
+      const chimeraModels = searchModels(models, 'chimera');
+      const glmModels = searchModels(models, 'glm');
+      console.log('Chimera models found:', chimeraModels);
+      console.log('GLM models found:', glmModels);
+      
+    } catch (error) {
+      console.error('Error fetching OpenRouter models:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to fetch OpenRouter models: ${errorMessage}`);
+    } finally {
+      setIsLoadingModels(false);
+    }
   };
 
   const testConnection = async () => {
@@ -1493,6 +1560,14 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
           throw new Error('OpenRouter API key is required');
         }
         headers['Authorization'] = `Bearer ${apiKey}`;
+      } else if (provider?.type === 'manual') {
+        const customConfig = localSettings.customProviderConfig;
+        if (!customConfig?.baseUrl || !customConfig?.apiKey) {
+          throw new Error('Custom provider configuration is incomplete');
+        }
+        testUrl = `${customConfig.baseUrl}/models`;
+        headers['Authorization'] = `Bearer ${customConfig.apiKey}`;
+        headers['Content-Type'] = 'application/json';
       } else {
         // For other cloud providers, we'll just validate the API key format
         const apiKey = localSettings.apiKeys[localSettings.selectedAIProvider];
@@ -2000,9 +2075,15 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
               fontSize: '16px', 
               fontWeight: '600', 
               marginBottom: '16px',
-              color: '#1e293b'
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}>
               OpenRouter Configuration
+              {isLoadingModels && (
+                <Loader className="w-4 h-4 animate-spin" style={{ color: '#3b82f6' }} />
+              )}
             </h4>
             
             <div style={{ marginBottom: '16px' }}>
@@ -2033,6 +2114,408 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ settings, onSaveSettings }) =
                 onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
               />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <button
+                onClick={fetchOpenRouterModelsList}
+                disabled={isLoadingModels || !localSettings.openRouterConfig?.apiKey}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  border: 'none',
+                  cursor: isLoadingModels || !localSettings.openRouterConfig?.apiKey ? 'not-allowed' : 'pointer',
+                  backgroundColor: isLoadingModels || !localSettings.openRouterConfig?.apiKey ? '#cbd5e1' : '#3b82f6',
+                  color: '#ffffff',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isLoadingModels ? (
+                  <Loader className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Brain className="w-4 h-4" />
+                )}
+                {isLoadingModels ? 'Loading Models...' : 'Refresh Models List'}
+              </button>
+              
+              {/* Help text */}
+              <div style={{
+                fontSize: '12px',
+                color: '#64748b',
+                marginTop: '8px',
+                lineHeight: '1.4'
+              }}>
+                💡 Models are automatically loaded when you select OpenRouter. Click "Refresh Models List" to get the latest models.
+              </div>
+            </div>
+
+            {/* OpenRouter Models List */}
+            {openRouterModels.length > 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h5 style={{ 
+                    fontSize: '14px', 
+                    fontWeight: '600', 
+                    color: '#1e293b'
+                  }}>
+                    Available Models ({openRouterModels.length})
+                  </h5>
+                </div>
+                
+                {/* Search Input and Free Models Toggle */}
+                <div style={{ marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={modelSearchTerm}
+                    onChange={(e) => setModelSearchTerm(e.target.value)}
+                    placeholder="Search models (e.g., chimera, glm, deepseek)..."
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '6px',
+                      color: '#1e293b',
+                      fontSize: '12px',
+                      outline: 'none'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px', 
+                    fontSize: '12px', 
+                    color: '#1e293b',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showFreeModelsOnly}
+                      onChange={(e) => setShowFreeModelsOnly(e.target.checked)}
+                      style={{ margin: 0 }}
+                    />
+                    Free Only
+                  </label>
+                </div>
+
+                {/* Model Selection Dropdown */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    marginBottom: '6px', 
+                    fontSize: '12px', 
+                    fontWeight: '600', 
+                    color: '#1e293b' 
+                  }}>
+                    Select OpenRouter Model:
+                  </label>
+                  <select
+                    value={localSettings.selectedModel?.openrouter || ''}
+                    onChange={(e) => handleModelChange('openrouter', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '6px',
+                      color: '#1e293b',
+                      fontSize: '12px',
+                      outline: 'none'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                  >
+                    <option value="">Choose a model...</option>
+                    {(() => {
+                      let displayModels = openRouterModels;
+                      
+                      // Apply free models filter first
+                      if (showFreeModelsOnly) {
+                        displayModels = getFreeModels(displayModels);
+                      }
+                      
+                      // Apply search filter
+                      if (modelSearchTerm.trim()) {
+                        displayModels = searchModels(displayModels, modelSearchTerm);
+                      }
+                      
+                      return displayModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {getModelDisplayName(model)} {model.id.toLowerCase().includes(':free') || model.name.toLowerCase().includes('free') ? '(FREE)' : ''}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+
+                <div style={{
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  backgroundColor: '#f8fafc'
+                }}>
+                  {Object.entries(groupModelsByProvider(
+                    (() => {
+                      let filteredModels = openRouterModels;
+                      
+                      // Apply free models filter first
+                      if (showFreeModelsOnly) {
+                        filteredModels = getFreeModels(filteredModels);
+                      }
+                      
+                      // Apply search filter
+                      if (modelSearchTerm.trim()) {
+                        filteredModels = searchModels(filteredModels, modelSearchTerm);
+                      }
+                      
+                      return filteredModels;
+                    })()
+                  )).map(([provider, models]) => (
+                    <div key={provider} style={{ marginBottom: '12px' }}>
+                      <div style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#e2e8f0',
+                        fontWeight: '600',
+                        fontSize: '12px',
+                        color: '#475569',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        {provider} ({models.length} models)
+                      </div>
+                      <div style={{ padding: '8px' }}>
+                        {models.map((model) => (
+                          <div key={model.id} style={{
+                            padding: '6px 8px',
+                            marginBottom: '4px',
+                            backgroundColor: localSettings.selectedModel?.openrouter === model.id ? '#dbeafe' : '#ffffff',
+                            border: localSettings.selectedModel?.openrouter === model.id ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            color: '#475569',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => handleModelChange('openrouter', model.id)}>
+                            <div>
+                              <div style={{ fontWeight: '500', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {getModelDisplayName(model)}
+                                {(() => {
+                                  const isFree = model.id.toLowerCase().includes(':free') || 
+                                                model.id.toLowerCase().includes('free') ||
+                                                model.name.toLowerCase().includes('free') ||
+                                                (model.pricing && 
+                                                 (model.pricing.prompt === '0' || model.pricing.prompt === 0 || !model.pricing.prompt) &&
+                                                 (model.pricing.completion === '0' || model.pricing.completion === 0 || !model.pricing.completion));
+                                  return isFree ? (
+                                    <span style={{
+                                      backgroundColor: '#10b981',
+                                      color: 'white',
+                                      padding: '2px 6px',
+                                      borderRadius: '3px',
+                                      fontSize: '10px',
+                                      fontWeight: '600'
+                                    }}>
+                                      FREE
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                ID: {model.id}
+                              </div>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              {model.context_length > 0 && `${model.context_length.toLocaleString()} tokens`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Manual Provider Configuration */}
+        {localSettings.selectedAIProvider === 'manual' && (
+          <div style={{
+            backgroundColor: '#ffffff',
+            border: '2px solid #e2e8f0',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '20px'
+          }}>
+            <h4 style={{ 
+              fontSize: '16px', 
+              fontWeight: '600', 
+              marginBottom: '16px',
+              color: '#1e293b'
+            }}>
+              Custom Provider Configuration
+            </h4>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                fontWeight: '500', 
+                marginBottom: '8px',
+                color: '#1e293b'
+              }}>
+                Provider Name
+              </label>
+              <input
+                type="text"
+                value={localSettings.customProviderConfig?.name || ''}
+                onChange={(e) => handleCustomProviderChange('name', e.target.value)}
+                placeholder="e.g., My Custom LLM"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  color: '#1e293b',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                fontWeight: '500', 
+                marginBottom: '8px',
+                color: '#1e293b'
+              }}>
+                Base URL
+              </label>
+              <input
+                type="text"
+                value={localSettings.customProviderConfig?.baseUrl || ''}
+                onChange={(e) => handleCustomProviderChange('baseUrl', e.target.value)}
+                placeholder="https://api.example.com/v1"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  color: '#1e293b',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                fontWeight: '500', 
+                marginBottom: '8px',
+                color: '#1e293b'
+              }}>
+                API Key
+              </label>
+              <input
+                type="password"
+                value={localSettings.customProviderConfig?.apiKey || ''}
+                onChange={(e) => handleCustomProviderChange('apiKey', e.target.value)}
+                placeholder="Enter your API key"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  color: '#1e293b',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                fontWeight: '500', 
+                marginBottom: '8px',
+                color: '#1e293b'
+              }}>
+                Model Name
+              </label>
+              <input
+                type="text"
+                value={localSettings.customProviderConfig?.model || ''}
+                onChange={(e) => handleCustomProviderChange('model', e.target.value)}
+                placeholder="e.g., gpt-4, claude-3-sonnet"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  color: '#1e293b',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+
+            {/* Info Box */}
+            <div style={{
+              backgroundColor: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '6px',
+              padding: '12px',
+              marginTop: '12px'
+            }}>
+              <div style={{
+                fontSize: '13px',
+                color: '#0369a1',
+                fontWeight: '500',
+                marginBottom: '8px'
+              }}>
+                ℹ️ Custom Provider Setup
+              </div>
+              <div style={{
+                fontSize: '12px',
+                color: '#075985',
+                lineHeight: '1.5'
+              }}>
+                Configure your own LLM provider with custom endpoints. The extension expects OpenAI-compatible API format with <code style={{
+                  backgroundColor: '#e0f2fe',
+                  padding: '2px 4px',
+                  borderRadius: '3px',
+                  fontFamily: 'monospace'
+                }}>/chat/completions</code> endpoint.
+              </div>
             </div>
           </div>
         )}
